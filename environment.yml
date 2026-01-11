@@ -1,0 +1,11 @@
+name: jobapp
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - litellm>=1.0.0
+      - python-dotenv>=1.0.0
+      - pillow>=10.0.0

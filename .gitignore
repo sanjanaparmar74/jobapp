@@ -24,3 +24,6 @@
 # Files folder - ignore contents but keep folder
 files/*
 !files/.gitkeep
+
+# Environment variables
+.env
