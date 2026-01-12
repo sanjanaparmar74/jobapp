@@ -31,6 +31,24 @@ COMPLETED_IMAGES_DIR = BASE_DIR / "files" / "completed_job_images"
 JOB_DESCRIPTIONS_DIR = BASE_DIR / "files" / "job_descriptions"
 
 
+
+DESCRIPTION_EXTRACTION_PROMPT="""
+Please extract the job description, qualifications, and any other information that is necessary to write a cover letter from this image.
+Return all of the information in bullet points.
+
+Return your response as a JSON object with the following structure:
+{
+  "job_title": "The job title",
+  "company": "Company name (or 'Not specified' if not visible)",
+  "job_description": "The full job description",
+  "qualifications": "All qualifications, requirements, and skills listed",
+  "additional_information": "Any other relevant information (or 'None' if not available)"
+}
+
+Be thorough and capture all relevant details from the image. Return ONLY the JSON object, no additional text.
+"""
+
+
 def encode_image_to_base64(image_path: Path) -> str:
     """
     Encode image file to base64 string.
@@ -106,20 +124,6 @@ def extract_job_description(image_path: Path) -> dict:
     if API_BASE_URL:
         os.environ["OPENAI_API_BASE"] = API_BASE_URL
 
-    # Prepare the extraction prompt for JSON output
-    prompt = """Please extract the job description and qualifications from this image.
-
-Return your response as a JSON object with the following structure:
-{
-  "job_title": "The job title",
-  "company": "Company name (or 'Not specified' if not visible)",
-  "job_description": "The full job description",
-  "qualifications": "All qualifications, requirements, and skills listed",
-  "additional_information": "Any other relevant information like salary, location, benefits, etc. (or 'None' if not available)"
-}
-
-Be thorough and capture all relevant details from the image. Return ONLY the JSON object, no additional text."""
-
     # Create message with image
     messages = [
         {
@@ -127,7 +131,7 @@ Be thorough and capture all relevant details from the image. Return ONLY the JSO
             "content": [
                 {
                     "type": "text",
-                    "text": prompt
+                    "text": DESCRIPTION_EXTRACTION_PROMPT
                 },
                 {
                     "type": "image_url",
@@ -195,6 +199,35 @@ def convert_json_to_markdown(job_data: dict) -> str:
     return markdown
 
 
+def sanitize_filename(text: str) -> str:
+    """
+    Sanitize text to create a valid filename.
+
+    Args:
+        text: Text to sanitize
+
+    Returns:
+        Sanitized filename-safe string
+    """
+    # Remove or replace invalid filename characters
+    invalid_chars = '<>:"/\\|?*'
+    for char in invalid_chars:
+        text = text.replace(char, '')
+
+    # Replace spaces and other whitespace with underscores
+    text = '_'.join(text.split())
+
+    # Limit length to avoid filesystem issues
+    max_length = 100
+    if len(text) > max_length:
+        text = text[:max_length]
+
+    # Remove trailing dots and spaces
+    text = text.rstrip('. ')
+
+    return text or "unknown"
+
+
 def save_job_description(job_data: dict, original_filename: str) -> Path:
     """
     Save job description to markdown file.
@@ -209,10 +242,10 @@ def save_job_description(job_data: dict, original_filename: str) -> Path:
     # Convert JSON to markdown
     markdown_content = convert_json_to_markdown(job_data)
 
-    # Create filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_name = Path(original_filename).stem
-    output_filename = f"{base_name}_{timestamp}.md"
+    # Create filename from company and job title
+    company = sanitize_filename(job_data.get('company', 'Unknown_Company'))
+    job_title = sanitize_filename(job_data.get('job_title', 'Unknown_Position'))
+    output_filename = f"{company}_{job_title}.md"
     output_path = JOB_DESCRIPTIONS_DIR / output_filename
 
     # Save the markdown file
